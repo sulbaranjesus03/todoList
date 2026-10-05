@@ -1,0 +1,62 @@
+# =========================
+# BASE DE DATOS
+# =========================
+
+database/*.db
+database/*.sqlite
+database/*.sqlite3
+
+
+# =========================
+# VARIABLES DE ENTORNO
+# =========================
+
+.env
+.env.*
+!.env.example
+
+
+# =========================
+# PHP / COMPOSER
+# =========================
+
+/vendor/
+
+
+# =========================
+# LOGS
+# =========================
+
+*.log
+logs/
+
+
+# =========================
+# SISTEMA OPERATIVO
+# =========================
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+
+# =========================
+# IDE / EDITORES
+# =========================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+
+# =========================
+# ARCHIVOS TEMPORALES
+# =========================
+
+*.tmp
+*.temp
+*.bak
