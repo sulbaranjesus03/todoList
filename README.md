@@ -54,7 +54,7 @@ Este README está pensado para **estudiar la arquitectura**: explica qué hace c
 
 ```bash
 cd todoList
-php -S localhost:8000 -t public public/index.php
+php -S localhost:8000 -t public public
 ```
 
 Abre `http://localhost:8000`, crea una cuenta y empieza a añadir tareas.
