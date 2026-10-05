@@ -53,7 +53,7 @@ Este README está pensado para **estudiar la arquitectura**: explica qué hace c
 ## 3. Cómo ejecutarlo
 
 ```bash
-cd todo-app
+cd todoList
 php -S localhost:8000 -t public public/index.php
 ```
 
