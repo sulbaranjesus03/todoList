@@ -18,7 +18,7 @@ final class Task
     public function all(int $userId): array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, title, completed, created_at FROM tasks WHERE user_id = :uid ORDER BY id DESC'
+            'SELECT id, title, content, completed, created_at FROM tasks WHERE user_id = :uid ORDER BY id DESC'
         );
         $stmt->execute([':uid' => $userId]);
 
@@ -28,7 +28,7 @@ final class Task
     public function find(int $id, int $userId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, title, completed, created_at FROM tasks WHERE id = :id AND user_id = :uid'
+            'SELECT id, title, content, completed, created_at FROM tasks WHERE id = :id AND user_id = :uid'
         );
         $stmt->execute([':id' => $id, ':uid' => $userId]);
         $row = $stmt->fetch();
@@ -36,10 +36,12 @@ final class Task
         return $row ? $this->cast($row) : null;
     }
 
-    public function create(int $userId, string $title): array
+    public function create(int $userId, string $title, string $content = ''): array
     {
-        $stmt = $this->db->prepare('INSERT INTO tasks (title, user_id) VALUES (:title, :uid)');
-        $stmt->execute([':title' => $title, ':uid' => $userId]);
+        $stmt = $this->db->prepare(
+            'INSERT INTO tasks (title, content, user_id) VALUES (:title, :content, :uid)'
+        );
+        $stmt->execute([':title' => $title, ':content' => $content, ':uid' => $userId]);
 
         return $this->find((int) $this->db->lastInsertId(), $userId);
     }
@@ -65,6 +67,7 @@ final class Task
     private function cast(array $row): array
     {
         $row['id']        = (int) $row['id'];
+        $row['content']   = (string) ($row['content'] ?? '');
         $row['completed'] = (bool) $row['completed'];
 
         return $row;

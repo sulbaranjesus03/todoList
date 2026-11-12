@@ -40,8 +40,8 @@ export const logout = () => request(`${AUTH_URL}/logout`, { method: 'POST' });
 // --- Tareas ---
 export const getTasks = async () => (await request(BASE_URL)).data;
 
-export const createTask = async (title) =>
-  (await request(BASE_URL, { method: 'POST', body: JSON.stringify({ title }) })).data;
+export const createTask = async (title, content = '') =>
+  (await request(BASE_URL, { method: 'POST', body: JSON.stringify({ title, content }) })).data;
 
 export const toggleTask = async (id) =>
   (await request(`${BASE_URL}/${id}/toggle`, { method: 'PATCH' })).data;

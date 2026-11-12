@@ -10,6 +10,7 @@ use App\Models\Task;
 final class TaskController
 {
     private const MAX_TITLE_LENGTH = 255;
+    private const MAX_CONTENT_LENGTH = 5000;
 
     public function __construct(private Task $tasks = new Task())
     {
@@ -24,8 +25,15 @@ final class TaskController
     /** POST /api/tasks */
     public function store(): void
     {
-        $title = Http::body()['title'] ?? '';
+        $body = Http::body();
+
+        $title = $body['title'] ?? '';
         $title = is_string($title) ? trim($title) : '';
+
+        $content = $body['content'] ?? '';
+        $content = is_string($content)
+            ? trim(str_replace(["\r\n", "\r"], "\n", $content))
+            : '';
 
         if ($title === '') {
             Http::json(['error' => 'El campo "title" es obligatorio.'], 400);
@@ -35,8 +43,12 @@ final class TaskController
             Http::json(['error' => 'El título no puede superar ' . self::MAX_TITLE_LENGTH . ' caracteres.'], 400);
             return;
         }
+        if (mb_strlen($content) > self::MAX_CONTENT_LENGTH) {
+            Http::json(['error' => 'El contenido no puede superar ' . self::MAX_CONTENT_LENGTH . ' caracteres.'], 400);
+            return;
+        }
 
-        Http::json(['data' => $this->tasks->create($this->uid(), $title)], 201);
+        Http::json(['data' => $this->tasks->create($this->uid(), $title, $content)], 201);
     }
 
     /** PATCH /api/tasks/{id}/toggle */

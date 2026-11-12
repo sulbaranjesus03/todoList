@@ -47,6 +47,7 @@ final class Database
             'CREATE TABLE IF NOT EXISTS tasks (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 title      TEXT NOT NULL,
+                content    TEXT NOT NULL DEFAULT \'\',
                 completed  INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE
@@ -57,6 +58,11 @@ final class Database
         $columns = array_column($pdo->query('PRAGMA table_info(tasks)')->fetchAll(), 'name');
         if (!in_array('user_id', $columns, true)) {
             $pdo->exec('ALTER TABLE tasks ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
+        }
+
+        // Bases de datos creadas antes de las notas: añadir content
+        if (!in_array('content', $columns, true)) {
+            $pdo->exec('ALTER TABLE tasks ADD COLUMN content TEXT NOT NULL DEFAULT \'\'');
         }
 
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id)');
