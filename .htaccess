@@ -1,0 +1,59 @@
+# =========================================================
+# TaskFlow · .htaccess para la Opción B
+#
+# Document root de InfinityFree (htdocs/) contiene:
+#   public/    -> front controller y assets
+#   src/       -> código PHP
+#   database/  -> SQLite
+#
+# Debe subirse a la RAÍZ de htdocs.
+# =========================================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # 1) Bloquear acceso web a código, datos y repositorio.
+    RewriteRule ^(src|database|docs|vendor)(/|$) - [F,L]
+    RewriteRule ^\.git(/|$) - [F,L]
+    RewriteRule ^(README\.md|\.env.*)$ - [F,L]
+
+    # 2) Si se entra por /public/... servir el archivo tal cual.
+    RewriteRule ^public/ - [L]
+
+    # 3) API -> front controller.
+    RewriteRule ^api(/.*)?$ public/index.php [QSA,L]
+
+    # 4) Archivos reales dentro de public/ (js, css, imágenes...).
+    RewriteCond %{DOCUMENT_ROOT}/public/$1 -f
+    RewriteRule ^(.+)$ public/$1 [L]
+
+    # 5) SPA: cualquier otra ruta -> index.html.
+    RewriteRule ^ public/index.html [L]
+</IfModule>
+
+# Tipos MIME necesarios para la PWA.
+<IfModule mod_mime.c>
+    AddType application/json .json
+    AddType application/manifest+json .webmanifest
+
+    # InfinityFree (testcookie/aes.js) sirve su reto anti-bot a todo lo que no
+    # sea imagen o CSS cuando la petición no trae la cookie __test. Chrome pide
+    # el manifest SIN cookies, así que se sirve desde una ruta .css (exenta del
+    # reto) forzando el MIME correcto de manifest.
+    <Files "manifest.css">
+        ForceType application/manifest+json
+    </Files>
+</IfModule>
+
+# Cabeceras básicas de seguridad (Apache 2.4+).
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-Frame-Options "DENY"
+
+    # Evita que el navegador use JS/HTML antiguos tras un despliegue.
+    <FilesMatch "\.(html|php|js|css|json)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>

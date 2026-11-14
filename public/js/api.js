@@ -12,7 +12,8 @@ export class ApiError extends Error {
 
 async function request(url, options = {}) {
   const method = options.method || 'GET';
-  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  const headers = { Accept: 'application/json', ...(options.headers || {}) };
+  if (options.body) headers['Content-Type'] = 'application/json';
   if (method !== 'GET') headers['X-CSRF-Token'] = csrfToken;
 
   const response = await fetch(url, { credentials: 'same-origin', ...options, headers });
@@ -43,7 +44,15 @@ export const getTasks = async () => (await request(BASE_URL)).data;
 export const createTask = async (title, content = '') =>
   (await request(BASE_URL, { method: 'POST', body: JSON.stringify({ title, content }) })).data;
 
+// PATCH/DELETE no existen en InfinityFree: se envían como POST + override.
 export const toggleTask = async (id) =>
-  (await request(`${BASE_URL}/${id}/toggle`, { method: 'PATCH' })).data;
+  (await request(`${BASE_URL}/${id}/toggle`, {
+    method: 'POST',
+    headers: { 'X-HTTP-Method-Override': 'PATCH' },
+  })).data;
 
-export const deleteTask = (id) => request(`${BASE_URL}/${id}`, { method: 'DELETE' });
+export const deleteTask = (id) =>
+  request(`${BASE_URL}/${id}`, {
+    method: 'POST',
+    headers: { 'X-HTTP-Method-Override': 'DELETE' },
+  });

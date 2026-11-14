@@ -457,6 +457,16 @@ document.addEventListener('keydown', (event) => {
 initTheme();
 setAuthMode(authMode);
 
+/* ---------- PWA ---------- */
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Sin service worker la app sigue funcionando con normalidad.
+    });
+  });
+}
+
 (async function init() {
   try {
     const user = await getSession();

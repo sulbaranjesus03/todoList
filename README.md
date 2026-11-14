@@ -23,7 +23,9 @@ Este README está pensado para **estudiar la arquitectura**: explica qué hace c
 13. [Decisiones de diseño y trade-offs](#13-decisiones-de-diseño-y-trade-offs)
 14. [Limitaciones conocidas](#14-limitaciones-conocidas)
 15. [Ejercicios para estudiar](#15-ejercicios-para-estudiar)
-16. [Roadmap](#16-roadmap)
+16. [PWA: instalación desde Chrome](#16-pwa-instalación-desde-chrome)
+17. [Despliegue en InfinityFree (htdocs)](#17-despliegue-en-infinityfree-htdocs)
+18. [Roadmap](#18-roadmap)
 
 ---
 
@@ -71,14 +73,19 @@ Abre `http://localhost:8000`, crea una cuenta y empieza a añadir tareas.
 
 **Apache/Nginx:** apunta el *document root* a `public/` y redirige todo lo que no sea un archivo existente hacia `index.php`.
 
+> En hosting compartido (InfinityFree) no se puede mover el *document root*, así que el proyecto se despliega completo dentro de `htdocs` con un `.htaccess` que reescribe las rutas. Los detalles están en la [sección 17](#17-despliegue-en-infinityfree-htdocs).
+
 ---
 
 ## 4. Estructura de carpetas
 
 ```
 todo-app/
+├── .htaccess                     # Solo para htdocs: rewrites, bloqueos, MIME y caché
 ├── database/                     # tasks.db se genera aquí (fuera del document root)
+│   └── .htaccess                 # Bloquea tasks.db por HTTP
 ├── src/                          # Código PHP, namespace raíz App\ (no es público)
+│   ├── .htaccess                 # Bloquea el código PHP por HTTP
 │   ├── Core/
 │   │   ├── Database.php          # Conexión PDO + migración automática
 │   │   ├── Http.php              # Helpers de respuesta JSON y lectura del body
@@ -92,6 +99,9 @@ todo-app/
 └── public/                       # Document root: lo único expuesto al navegador
     ├── index.php                 # Front Controller + Router + autoloader PSR-4
     ├── index.html                # Shell de la SPA (topbar, auth, app, tema y estilos)
+    ├── manifest.css              # Web App Manifest (extensión .css a propósito, ver §17.5)
+    ├── sw.js                     # Service Worker (shell offline)
+    ├── icons/                    # Iconos PNG de la PWA (any + maskable + apple-touch)
     └── js/
         ├── api.js                # Capa de red (fetch)
         ├── ui.js                 # Capa de vista (DOM)
@@ -99,6 +109,8 @@ todo-app/
 ```
 
 **Por qué esta separación:** solo `public/` es accesible desde la web. El código PHP en `src/` y la base de datos en `database/` quedan fuera del *document root*, así que nadie puede descargarlos por URL.
+
+> Cuando el proyecto se sube completo a `htdocs` (InfinityFree) esa separación ya no la da el servidor, así que la refuerza el `.htaccess` de la raíz: `src/`, `database/`, `docs/`, `vendor` y `.git` responden `403`, y cada una de esas carpetas tiene además su propio `.htaccess` como segunda barrera.
 
 ---
 
@@ -262,6 +274,8 @@ Todas las respuestas son `application/json; charset=utf-8`.
 | `POST` | `/api/tasks` | `{title, content?}` | `201` `{data: Task}` · `400` |
 | `PATCH` | `/api/tasks/{id}/toggle` | n/a | `200` `{data: Task}` · `404` |
 | `DELETE` | `/api/tasks/{id}` | n/a | `200` `{message}` · `404` |
+
+> **Method override:** algunos hostings compartidos (InfinityFree) solo aceptan `GET` y `POST`. `public/index.php` lee el header `X-HTTP-Method-Override` y, si la petición es `POST`, la trata como `PATCH`, `PUT` o `DELETE`. `api.js` usa este mecanismo para `toggleTask` y `deleteTask`, así que el contrato de la API no cambia: sigue siendo `PATCH`/`DELETE` desde el punto de vista del cliente.
 
 ### Códigos de estado usados
 
@@ -484,7 +498,7 @@ sequenceDiagram
 ## 14. Limitaciones conocidas
 
 - **Sin rate limiting** en login/registro: vulnerable a fuerza bruta en producción.
-- **Sin cabeceras de seguridad** (`Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`). Además, el CDN de Tailwind complica una CSP estricta.
+- **Sin `Content-Security-Policy`**: el `.htaccess` de despliegue ya envía `X-Content-Type-Options`, `X-Frame-Options` y `Referrer-Policy`, pero el CDN de Tailwind complica una CSP estricta.
 - **Sin verificación de correo ni recuperación de contraseña.**
 - **Sin tests automatizados.**
 - **Tareas huérfanas:** si vienes de la versión sin usuarios, esas tareas tienen `user_id NULL` y nadie las ve. Para asignarlas: `UPDATE tasks SET user_id = 1 WHERE user_id IS NULL;`
@@ -520,6 +534,317 @@ Ordenados de menor a mayor dificultad. Cada uno te obliga a tocar una capa disti
 - ¿Por qué el resaltado de búsqueda construye nodos de texto en vez de usar `innerHTML`?
 - En la UI optimista, ¿por qué el rollback de `toggle` solo modifica la tarea afectada?
 - ¿Qué cambia si el servidor pasa a varias máquinas y las sesiones están en archivos locales?
+
+---
+
+## 16. PWA: instalación desde Chrome
+
+La app se puede **instalar** desde Chrome (escritorio y Android) y abrirse en su propia ventana, sin barra de direcciones, con icono en el sistema.
+
+### 16.1 Piezas añadidas
+
+| Archivo | Función |
+|---|---|
+| `public/manifest.css` | Web App Manifest: identidad, colores, `start_url`, `scope` e iconos. La extensión `.css` es intencional ([§17.5](#175-el-reto-anti-bot-y-el-manifest-css)) |
+| `public/sw.js` | Service Worker: shell cacheado y fallback offline básico |
+| `public/icons/` | 5 PNG: `icon-192`, `icon-512`, `icon-maskable-192`, `icon-maskable-512`, `apple-touch-icon-180` |
+| `public/index.html` | `<link rel="manifest">`, `apple-touch-icon` y metas `apple-mobile-web-app-*` |
+| `public/js/app.js` | Registro del Service Worker |
+| `.htaccess` | `ForceType application/manifest+json` para que el manifest se sirva con el MIME correcto pese a llamarse `.css` |
+| `public/js/api.js` | *Method override* para `PATCH`/`DELETE` (necesario en el hosting, ver [§17.4](#174-method-override-patchdelete)) |
+
+### 16.2 Qué exige Chrome para ofrecer la instalación
+
+1. **HTTPS** (o `localhost`/`127.0.0.1`, que cuentan como contexto seguro).
+2. Un **manifest enlazado** desde el HTML, que responda `200` y con MIME `application/manifest+json` o `application/json`.
+3. `name` (o `short_name`), `icons` con **192×192 y 512×512**, `start_url` y `display` distinto de `browser`.
+4. Un **Service Worker con handler `fetch`**: desde Chrome 108/112 ya **no es obligatorio** para instalar, pero se incluye igualmente porque aporta apertura offline y arranque más rápido.
+
+### 16.3 El manifest
+
+```json
+{
+  "id": "/",
+  "name": "TaskFlow — Administrador de tareas",
+  "short_name": "TaskFlow",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "icons": [
+    { "src": "/icons/icon-192.png",          "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png",          "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
+```
+
+- `start_url` y `scope` son `/` porque la app vive en la raíz del dominio (`https://listify.infinityfreeapp.com/`).
+- `id` fija la **identidad** de la app instalada. Si se cambia, Chrome la considera otra aplicación distinta.
+- `theme_color` tiñe la barra de estado/ventana; `background_color` es el color de la pantalla de arranque.
+- `display_override: ["standalone", "minimal-ui"]` permite degradar a `minimal-ui` en plataformas que no soportan `standalone`.
+
+### 16.4 Iconos
+
+| Archivo | Tamaño | `purpose` | Detalle |
+|---|---|---|---|
+| `icon-192.png` | 192×192 | `any` | Fondo redondeado y esquinas **transparentes** |
+| `icon-512.png` | 512×512 | `any` | Igual, para pantallas de alta densidad |
+| `icon-maskable-192.png` | 192×192 | `maskable` | **Full bleed**: el fondo cubre todo el lienzo |
+| `icon-maskable-512.png` | 512×512 | `maskable` | Igual, a mayor resolución |
+| `apple-touch-icon-180.png` | 180×180 | — | iOS no admite transparencia; fondo sólido |
+
+Los `maskable` existen porque Android **recorta** el icono con la forma del lanzador (círculo, gota, cuadrado redondeado). Por eso el fondo ocupa todo el lienzo y el check queda dentro de la **zona segura** (el 80 % central): así ningún recorte lo corta. Los `any` mantienen esquinas transparentes para el escritorio.
+
+### 16.5 El Service Worker (`public/sw.js`)
+
+```mermaid
+flowchart TB
+    I[install] --> P[cache.addAll APP_SHELL<br/>skipWaiting]
+    P --> A[activate]
+    A --> D[borra caches != CACHE_VERSION<br/>clients.claim]
+    D --> F[fetch]
+    F --> G{solo GET<br/>mismo origen<br/>no /api/}
+    G -->|navegación| H[red primero<br/>fallback index.html]
+    G -->|assets| J[red primero<br/>fallback cache]
+```
+
+- **Versión de caché:** `const CACHE_VERSION = 'taskflow-v2'`. Al desplegar cambios en el shell hay que **subir la versión** para que `activate` borre la caché anterior.
+- **Precache:** `/`, `/manifest.css`, los cinco iconos y `js/app.js`, `js/api.js`, `js/ui.js`. Si alguno de esos archivos faltara, `cache.addAll` fallaría y el SW no se instalaría: la lista debe mantenerse sincronizada con la realidad.
+- **Nunca cachea `/api/`:** las respuestas llevan datos privados del usuario y estado (CSRF); servirlas desde caché rompería la sesión y mostraría datos obsoletos.
+- **Red primero, caché como respaldo:** así nunca se sirve un JS viejo tras un despliegue, pero si no hay conexión la app sigue abriendo.
+- **`skipWaiting()` + `clients.claim()`:** la versión nueva toma el control sin obligar al usuario a cerrar todas las pestañas.
+
+### 16.6 Registro
+
+```js
+/* public/js/app.js */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Sin service worker la app sigue funcionando con normalidad.
+    });
+  });
+}
+```
+
+Se registra en `load` para no competir con la primera pintura. El `catch` es deliberado: la PWA es una mejora progresiva, nunca un requisito para usar la app.
+
+### 16.7 Cómo se instala
+
+- **Chrome de escritorio:** icono de instalar en la barra de direcciones, o menú **⋮ → «Instalar TaskFlow»**. Se abre en una ventana propia.
+- **Chrome en Android:** menú **⋮ → «Instalar aplicación» / «Añadir a pantalla de inicio»**.
+- **iOS (Safari):** Compartir → «Añadir a pantalla de inicio» (usa `apple-touch-icon`).
+
+### 16.8 Cómo verificarlo
+
+En DevTools:
+
+| Panel | Qué debe mostrar |
+|---|---|
+| **Application → Manifest** | Nombre, `start_url: /`, `display: standalone` y los 4 iconos, sin errores |
+| **Application → Service Workers** | `/sw.js` en estado *activated and is running*, con scope `/` |
+| **Application → Cache Storage** | `taskflow-v2` con el shell |
+| **Console** | Sin errores de manifest ni de SW |
+
+Comprobación real registrada en local (`http://127.0.0.1:8766`):
+
+```
+swRegistered: true   swActive: "activated"   controller: true
+swScope: http://127.0.0.1:8766/
+manifest: 200 application/json  name="TaskFlow — Administrador de tareas"
+icons: 192x192/any, 512x512/any, 192x192/maskable, 512x512/maskable
+caches: ["taskflow-v2"]  ·  recarga con SW controlando: OK  ·  consola: 0 errores
+```
+
+---
+
+## 17. Despliegue en InfinityFree (htdocs)
+
+### 17.1 Restricciones que condicionan el diseño
+
+| Restricción del hosting | Consecuencia en el proyecto |
+|---|---|
+| El *document root* es **`htdocs`** y no se puede cambiar | Opción B: se sube el repo **completo** dentro de `htdocs` y un `.htaccess` hace de puente |
+| Solo permite `GET` y `POST` | *Method override* para `PATCH` y `DELETE` |
+| Anti-bot con `/aes.js` y cookie `__test` | El manifest se sirve desde una ruta `.css` |
+| HTTPS con certificado propio | Requisito de PWA cumplido, y la cookie de sesión puede ir con `Secure` |
+| Sin SSH ni Composer | Autoloader manual (ya lo era) y SQLite como base de datos |
+
+### 17.2 Estructura en el servidor
+
+```
+htdocs/                          ← document root real del hosting
+├── .htaccess                   ← rewrites, bloqueos, MIME y caché
+├── public/                     ← la app (front controller + assets)
+│   ├── index.php
+│   ├── index.html
+│   ├── manifest.css
+│   ├── sw.js
+│   ├── icons/
+│   └── js/
+├── src/                        ← código PHP (protegido por .htaccess)
+├── database/                   ← tasks.db (protegido por .htaccess)
+└── docs/                       ← documentación (protegida por .htaccess)
+```
+
+### 17.3 El `.htaccess` de la raíz, regla por regla
+
+| # | Regla | Para qué |
+|---|---|---|
+| 1 | `^(src|database|docs|vendor)(/|$)` → `[F]` | Devuelve `403`: nadie descarga el código, la base de datos ni la documentación |
+| 1 | `^\.git`, `README.md`, `.env*` → `[F]` | No exponer repositorio ni secretos |
+| 2 | `^public/` → `[L]` | Si se entra por `/public/...`, se sirve el archivo tal cual |
+| 3 | `^api(/.*)?$` → `public/index.php` `[QSA,L]` | La API siempre pasa por el front controller (que sigue viendo `/api/...` en `REQUEST_URI`) |
+| 4 | `RewriteCond %{DOCUMENT_ROOT}/public/$1 -f` | Los assets reales (`/js/app.js`, `/icons/...`, `/manifest.css`) se sirven desde `public/` |
+| 5 | `^(.*)$` → `public/index.html` | Cualquier otra ruta devuelve la SPA |
+
+Además:
+
+- `AddType application/json .json` y `ForceType application/manifest+json` para `manifest.css`.
+- `Header always set X-Content-Type-Options`, `Referrer-Policy` y `X-Frame-Options: DENY`.
+- `Cache-Control: no-cache, must-revalidate` para `.html .php .js .css .json`, de modo que un despliegue se ve con **un solo Ctrl + F5**.
+
+Ejemplos de resolución:
+
+| Petición | Se sirve |
+|---|---|
+| `GET /` | `public/index.html` |
+| `GET /js/app.js` | `public/js/app.js` |
+| `GET /manifest.css` | `public/manifest.css` con MIME de manifest |
+| `GET /api/tasks` | `public/index.php` → `TaskController::index()` |
+| `GET /src/Core/Database.php` | `403` |
+| `GET /database/tasks.db` | `403` |
+
+### 17.4 Method override (`PATCH`/`DELETE`)
+
+El hosting rechaza `PATCH`, `PUT` y `DELETE` con `405`, así que el cliente los envía como `POST` con un header que el router traduce:
+
+```js
+/* public/js/api.js */
+export const toggleTask = async (id) =>
+  (await request(`${BASE_URL}/${id}/toggle`, {
+    method: 'POST',
+    headers: { 'X-HTTP-Method-Override': 'PATCH' },
+  })).data;
+
+export const deleteTask = (id) =>
+  request(`${BASE_URL}/${id}`, {
+    method: 'POST',
+    headers: { 'X-HTTP-Method-Override': 'DELETE' },
+  });
+```
+
+```php
+/* public/index.php */
+$method   = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$override = strtoupper($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] ?? '');
+
+if ($method === 'POST' && in_array($override, ['PATCH', 'PUT', 'DELETE'], true)) {
+    $method = $override;
+}
+```
+
+- Solo se permite **POST → PATCH/PUT/DELETE**, nunca al revés, así que no se puede "escapar" del guard CSRF subiendo de método.
+- El guard CSRF sigue aplicándose porque la petición *real* es `POST` y no está en la lista de exentas.
+- El resto de la API (`GET`, `POST`) funciona igual en local y en producción: el override es transparente.
+
+### 17.5 El reto anti-bot y el manifest `.css`
+
+InfinityFree interpone un módulo `testcookie` que sirve `/aes.js`: si la petición **no** trae la cookie `__test`, responde `200 text/html` con una página que calcula la cookie en JavaScript y recarga. Es decir, responde HTML **en lugar del archivo pedido**.
+
+Sondas reales contra `https://listify.infinityfreeapp.com` **sin** cookie:
+
+| URL | Respuesta |
+|---|---|
+| `/manifest.json` | reto HTML (`aes.js`) |
+| `/sw.js` | reto HTML |
+| `/js/app.js` | reto HTML |
+| `/api/auth/me` | reto HTML |
+| `/icons/icon-192.png` | **PNG real** (exento) |
+| `/nada.css` | **exento** (sin reto) |
+
+Y aquí está el detalle que rompía la PWA: **Chrome pide el manifest sin cookies** (comportamiento del navegador, no configurable desde la página). Recibía el HTML del reto y su parser JSON lo reportaba como:
+
+```
+Manifest: Line: 1, column: 1, Syntax error.
+```
+
+Mientras que abrir `/manifest.json` a mano *sí* funcionaba, porque ahí el navegador ejecuta `aes.js`, se coloca la cookie y recarga.
+
+**Solución:** servir el manifest desde una ruta exenta del reto y forzar el MIME:
+
+```apache
+<Files "manifest.css">
+    ForceType application/manifest+json
+</Files>
+```
+
+- El archivo es `public/manifest.css` y contiene JSON puro.
+- `index.html` lo enlaza como `<link rel="manifest" href="/manifest.css">`.
+- El Service Worker lo precachea en `APP_SHELL`.
+- `sw.js` e iconos **no** necesitan truco: el SW se registra con credenciales (recibe la cookie) y los PNG ya están exentos.
+
+> Lo mismo explica el «error de CORS» que aparecía antes de tener `.htaccess`: el servidor redirigía a `errors.infinityfree.net` y el navegador lo interpretaba como fallo de CORS. No era CORS, era la petición devolviendo HTML/redirección.
+
+### 17.6 Qué subir y qué no
+
+**Subir a la raíz de `htdocs`:**
+
+- `.htaccess`
+- `public/` completo (`index.php`, `index.html`, `manifest.css`, `sw.js`, `icons/`, `js/`)
+- `src/`
+- `database/` (la carpeta, **sin** el `tasks.db` local)
+- `docs/` (opcional)
+
+**No subir:**
+
+- `database/tasks.db` con datos locales: sobrescribiría los usuarios y tareas reales. El esquema (`users`, `tasks`) se crea solo en la primera petición gracias a `Database::migrate()`.
+- `todoList.zip` ni copias comprimidas del repo.
+
+**Requisitos:** `database/` debe tener permiso de escritura para que SQLite pueda crear el archivo.
+
+### 17.7 Verificación en producción
+
+| Comprobación | Esperado |
+|---|---|
+| `GET /` | `200` con el HTML de la SPA |
+| `GET /manifest.css` | `200` con `application/manifest+json` |
+| `GET /sw.js` | `200` con `application/javascript` |
+| `GET /icons/icon-192.png` | `200` con `image/png` |
+| `GET /api/auth/me` | `200` con JSON y `csrf` |
+| `GET /src/Core/Database.php` | `403` |
+| `GET /database/tasks.db` | `403` |
+| Crear / completar / eliminar tarea | `201` / `200` / `200`, nunca `405` |
+| DevTools → Application | Manifest sin errores, SW activo, caché `taskflow-v2` |
+
+### 17.8 Problemas típicos
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| `404` en todas las rutas | Falta el `.htaccess` en `htdocs` (o `mod_rewrite`) | Subirlo a la raíz y comprobar que `RewriteEngine On` se aplica |
+| «CORS error» en la API | Redirección a `errors.infinityfree.net` por falta de reescritura | Mismo caso: es el `.htaccess` |
+| `405` al completar o eliminar | El hosting no acepta `PATCH`/`DELETE` | Method override de [§17.4](#174-method-override-patchdelete) |
+| `Manifest: Line: 1, column: 1, Syntax error` | Anti-bot devolviendo HTML por falta de cookie | Enlazar `/manifest.css` con `ForceType` ([§17.5](#175-el-reto-anti-bot-y-el-manifest-css)) |
+| Se ven CSS/JS viejos tras desplegar | Caché del navegador | `Ctrl + F5` una vez; el `.htaccess` ya manda `no-cache` |
+| `500` sin detalle en la respuesta | Excepción no controlada o `database/` sin permisos | Revisar `error_log` y permisos de `database/` |
+| Chrome no ofrece instalar | Falta HTTPS, manifest con MIME incorrecto o icono 512 | Revisar Application → Manifest y la pestaña Network |
+
+---
+
+## 18. Roadmap
+
+Siguientes pasos naturales, en orden de impacto:
+
+1. **Edición de tareas** (`PATCH /api/tasks/{id}`) para completar el CRUD.
+2. **`Content-Security-Policy`** junto con un build de Tailwind (sin CDN) para poder aplicarla de verdad.
+3. **Tests automatizados** del backend con SQLite en memoria (aislamiento entre usuarios incluido).
+4. **Rate limiting** en login/registro y verificación de correo.
+5. **Paginación y orden** en `GET /api/tasks` para listas grandes.
+6. **Mejoras de PWA:** `screenshots`, `shortcuts` en el manifest, `Background Sync` para reintentar operaciones sin conexión y notificaciones push.
+7. **Migraciones versionadas** en lugar de `migrate()` en cada conexión.
 
 ---
 

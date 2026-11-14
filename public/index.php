@@ -20,6 +20,13 @@ spl_autoload_register(static function (string $class): void {
 $path   = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+// Hostings compartidos como InfinityFree solo aceptan GET y POST.
+// El cliente manda POST + X-HTTP-Method-Override: PATCH|DELETE.
+$override = strtoupper($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] ?? '');
+if ($method === 'POST' && in_array($override, ['PATCH', 'PUT', 'DELETE'], true)) {
+    $method = $override;
+}
+
 // --- Estáticos y SPA ---
 if (!str_starts_with($path, '/api/')) {
     $static = __DIR__ . $path;
