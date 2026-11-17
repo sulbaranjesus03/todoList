@@ -46,6 +46,21 @@ final class Task
         return $this->find((int) $this->db->lastInsertId(), $userId);
     }
 
+    public function update(int $id, int $userId, string $title, string $content = ''): ?array
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE tasks SET title = :title, content = :content WHERE id = :id AND user_id = :uid'
+        );
+        $stmt->execute([
+            ':id' => $id,
+            ':uid' => $userId,
+            ':title' => $title,
+            ':content' => $content,
+        ]);
+
+        return $this->find($id, $userId);
+    }
+
     public function toggle(int $id, int $userId): ?array
     {
         $stmt = $this->db->prepare(

@@ -45,6 +45,13 @@ export const createTask = async (title, content = '') =>
   (await request(BASE_URL, { method: 'POST', body: JSON.stringify({ title, content }) })).data;
 
 // PATCH/DELETE no existen en InfinityFree: se envían como POST + override.
+export const updateTask = async (id, { title, content = '' }) =>
+  (await request(`${BASE_URL}/${id}`, {
+    method: 'POST',
+    headers: { 'X-HTTP-Method-Override': 'PATCH' },
+    body: JSON.stringify({ title, content }),
+  })).data;
+
 export const toggleTask = async (id) =>
   (await request(`${BASE_URL}/${id}/toggle`, {
     method: 'POST',

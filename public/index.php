@@ -75,6 +75,8 @@ try {
         };
     } elseif (preg_match('#^/api/tasks/(\d+)/toggle$#', $path, $m) && in_array($method, ['PATCH', 'PUT'], true)) {
         $tasks->toggle((int) $m[1]);
+    } elseif (preg_match('#^/api/tasks/(\d+)$#', $path, $m) && in_array($method, ['PATCH', 'PUT'], true)) {
+        $tasks->update((int) $m[1]);
     } elseif (preg_match('#^/api/tasks/(\d+)$#', $path, $m) && $method === 'DELETE') {
         $tasks->destroy((int) $m[1]);
     } else {

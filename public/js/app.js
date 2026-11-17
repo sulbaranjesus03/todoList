@@ -1,6 +1,6 @@
 import {
   getSession, login, register, logout,
-  getTasks, createTask, toggleTask, deleteTask,
+  getTasks, createTask, updateTask, toggleTask, deleteTask,
 } from './api.js';
 import {
   getElements, renderTasks, clearForm, setLoading, showError,
@@ -8,20 +8,23 @@ import {
   animateLogout, initTheme, toggleTheme, togglePasswordVisibility,
   showToast, setTaskBusy, updateTaskLength, setClearCompletedConfirm,
   resetTasksView, focusSearch, focusComposer, setLogoutBusy,
-  animateTaskToggle, animateTaskRemoval, updateContentHeight,
+  animateTaskToggle, animateTaskRemoval, updateContentHeight, setEditMode,
+  initDailyPhrase,
 } from './ui.js';
 
 const {
   form, input, list, authForm, logoutBtn, tabs, passwordToggle, themeToggle,
   filterGroup, search, searchClear, clearCompleted, emptyAction, appView, taskContent,
+  taskCancelEdit,
 } = getElements();
 
 /* ---------- Estado ---------- */
 
 let tasks = [];
 let authMode = 'login';
-let filter = 'all';
+let filter = 'pending';
 let query = '';
+let editingId = null;
 
 const busyIds = new Set();
 let searchTimer = null;
@@ -50,8 +53,9 @@ function resetClearConfirm() {
 
 function resetToAuth() {
   tasks = [];
-  filter = 'all';
+  filter = 'pending';
   query = '';
+  editingId = null;
   busyIds.clear();
   clearTimeout(searchTimer);
 
@@ -73,6 +77,26 @@ function clearSearch({ focus = true } = {}) {
   query = '';
   refresh();
   if (focus) search.focus();
+}
+
+function startEditing(id) {
+  const task = tasks.find((item) => item.id === id);
+  if (!task) return;
+
+  editingId = id;
+  input.value = task.title;
+  taskContent.value = task.content ?? '';
+
+  setEditMode(true);
+  updateTaskLength();
+  updateContentHeight();
+  input.focus();
+}
+
+function cancelEditing() {
+  editingId = null;
+  setEditMode(false);
+  clearForm();
 }
 
 /* ---------- Carga inicial y sesión ---------- */
@@ -97,8 +121,9 @@ async function loadTasks() {
 async function enterApp(user) {
   authForm.reset();
   tasks = [];
-  filter = 'all';
+  filter = 'pending';
   query = '';
+  editingId = null;
 
   resetTasksView();
   resetClearConfirm();
@@ -168,7 +193,11 @@ themeToggle.addEventListener('click', toggleTheme);
 input.addEventListener('input', updateTaskLength);
 taskContent.addEventListener('input', updateContentHeight);
 
-taskContent.addEventListener('keydown', (event) => {
+taskCancelEdit.addEventListener('click', () => {
+  if (editingId !== null) cancelEditing();
+});
+
+form.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
     form.requestSubmit();
@@ -190,13 +219,51 @@ form.addEventListener('submit', async (event) => {
   showError('');
   setTaskBusy(true);
 
+  if (editingId !== null) {
+    const id = editingId;
+    const previous = tasks.find((task) => task.id === id);
+
+    if (!previous) {
+      cancelEditing();
+      setTaskBusy(false);
+      return;
+    }
+
+    tasks = tasks.map((task) =>
+      task.id === id ? { ...task, title, content } : task,
+    );
+    refresh();
+
+    try {
+      const updated = await updateTask(id, { title, content });
+
+      tasks = tasks.map((task) => (task.id === id ? updated : task));
+      editingId = null;
+      setEditMode(false);
+      refresh();
+      clearForm();
+      showToast('Tarea actualizada.', 'success');
+    } catch (error) {
+      tasks = tasks.map((task) => (task.id === id ? previous : task));
+      refresh();
+
+      if (handleSessionError(error)) return;
+
+      showError(error.message || 'No se pudo actualizar la tarea.');
+      input.focus();
+    } finally {
+      setTaskBusy(false);
+    }
+    return;
+  }
+
   try {
     const task = await createTask(title, content);
 
     tasks = [task, ...tasks];
 
     // Al añadir, mostramos siempre el resultado recién creado.
-    filter = 'all';
+    filter = 'pending';
     query = '';
     search.value = '';
     clearTimeout(searchTimer);
@@ -291,6 +358,13 @@ async function handleDelete(id, item) {
   await animateTaskRemoval(item);
 
   tasks = tasks.filter((task) => task.id !== id);
+
+  if (editingId === id) {
+    editingId = null;
+    setEditMode(false);
+    clearForm();
+  }
+
   refresh();
 
   const result = await request;
@@ -324,6 +398,8 @@ list.addEventListener('click', (event) => {
 
   if (button.dataset.action === 'toggle') {
     handleToggle(id);
+  } else if (button.dataset.action === 'edit') {
+    startEditing(id);
   } else if (button.dataset.action === 'delete') {
     handleDelete(id, item);
   }
@@ -444,7 +520,10 @@ document.addEventListener('keydown', (event) => {
   }
 
   if (event.key === 'Escape') {
-    if (search.value) {
+    if (editingId !== null) {
+      event.preventDefault();
+      cancelEditing();
+    } else if (search.value) {
       clearSearch({ focus: document.activeElement === search });
     } else if (isField) {
       target.blur();
@@ -455,6 +534,7 @@ document.addEventListener('keydown', (event) => {
 /* ---------- Arranque ---------- */
 
 initTheme();
+initDailyPhrase();
 setAuthMode(authMode);
 
 /* ---------- PWA ---------- */

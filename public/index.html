@@ -713,6 +713,10 @@
                                             class="shrink-0 text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500">
                                             0/255
                                         </span>
+                                        <button id="task-cancel-edit" type="button"
+                                            class="hidden items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 active:scale-[.98] dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300 dark:hover:bg-white/[0.06]">
+                                            Cancelar
+                                        </button>
                                         <button id="task-submit" type="submit"
                                             class="group flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-indigo-500/30 active:translate-y-0 active:scale-[.98] disabled:pointer-events-none disabled:opacity-60">
                                             <svg id="task-submit-spinner" class="hidden h-4 w-4 animate-spin"
@@ -749,14 +753,14 @@
                                 <div class="flex flex-wrap items-center justify-between gap-2">
                                     <div id="filter-group" role="tablist" aria-label="Filtrar tareas"
                                         class="inline-flex rounded-xl bg-slate-100/90 p-1 ring-1 ring-slate-200/60 dark:bg-white/5 dark:ring-white/10">
-                                        <button type="button" data-filter="all" role="tab" aria-selected="true"
-                                            class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-[13px] font-semibold text-slate-900 shadow-sm ring-1 ring-slate-900/5 transition-all duration-200 dark:bg-white/10 dark:text-white dark:ring-white/10">
+                                        <button type="button" data-filter="all" role="tab" aria-selected="false"
+                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-slate-500 transition-all duration-200 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
                                             Todas
                                             <span data-count="all"
                                                 class="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-500 dark:bg-white/10 dark:text-slate-300">0</span>
                                         </button>
-                                        <button type="button" data-filter="pending" role="tab" aria-selected="false"
-                                            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-slate-500 transition-all duration-200 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                        <button type="button" data-filter="pending" role="tab" aria-selected="true"
+                                            class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-[13px] font-semibold text-slate-900 shadow-sm ring-1 ring-slate-900/5 transition-all duration-200 dark:bg-white/10 dark:text-white dark:ring-white/10">
                                             Pendientes
                                             <span data-count="pending"
                                                 class="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-500 dark:bg-white/10 dark:text-slate-300">0</span>
@@ -998,9 +1002,8 @@
                         <p class="relative text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">
                             Consejo del día
                         </p>
-                        <p class="relative mt-2 text-sm font-medium leading-relaxed">
-                            Divide las tareas grandes en pasos pequeños. Avanzar es más fácil cuando sabes cuál es el
-                            siguiente.
+                        <p id="daily-phrase" class="relative mt-2 text-sm font-medium leading-relaxed">
+                            Divide las tareas grandes en pasos pequeños. Avanzar es más fácil cuando sabes cuál es el siguiente.
                         </p>
                         <div class="relative mt-3 flex items-center gap-2 text-[11px] font-medium text-white/60">
                             <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"

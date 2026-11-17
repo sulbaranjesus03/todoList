@@ -41,6 +41,7 @@ const els = {
   greetingText: $('greeting-text'),
   greetingName: $('greeting-name'),
   todayLabel: $('today-label'),
+  dailyPhrase: $('daily-phrase'),
   counter: $('counter'),
 
   // Estadísticas
@@ -65,6 +66,7 @@ const els = {
   taskSubmitLabel: $('task-submit-label'),
   taskSubmitSpinner: $('task-submit-spinner'),
   taskSubmitIcon: $('task-submit-icon'),
+  taskCancelEdit: $('task-cancel-edit'),
   taskLength: $('task-length'),
   list: $('task-list'),
   loading: $('loading'),
@@ -130,6 +132,12 @@ const ICONS = {
     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M20 6 9 17l-5-5" />
+    </svg>`,
+  pencil: `
+    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>`,
   trash: `
     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -210,6 +218,31 @@ function todayLabel() {
       month: 'long',
     }).format(new Date()),
   );
+}
+
+const DAILY_PHRASES = [
+  'Divide las tareas grandes en pasos pequeños. Avanzar es más fácil cuando sabes cuál es el siguiente.',
+  'Empieza por lo importante y lo demás encajará.',
+  'Hecho es mejor que perfecto.',
+  'Un paso pequeño hoy vale más que un gran plan mañana.',
+  'Enfócate en una cosa a la vez.',
+  'La constancia vence al talento cuando el talento no es constante.',
+  'Cada tarea completada es una promesa cumplida contigo.',
+  'Ordénate por dentro y el día se ordena por fuera.',
+  'No necesitas más tiempo, necesitas menos ruido.',
+  'Termina lo que empiezas y celebra el avance.',
+];
+
+export function initDailyPhrase() {
+  if (!els.dailyPhrase) return;
+
+  const now = new Date();
+  const day = Math.floor(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000,
+  );
+
+  els.dailyPhrase.textContent =
+    DAILY_PHRASES[day % DAILY_PHRASES.length];
 }
 
 function greetingByHour() {
@@ -702,6 +735,21 @@ function createTaskItem(task, query) {
 
   content.append(meta);
 
+  /* Acciones */
+  const actions = document.createElement('div');
+  actions.className = 'flex shrink-0 items-center gap-0.5';
+
+  const edit = document.createElement('button');
+  edit.type = 'button';
+  edit.dataset.action = 'edit';
+  edit.setAttribute('aria-label', 'Editar tarea');
+  edit.className =
+    'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-slate-400 ' +
+    'transition-all duration-200 hover:bg-indigo-50 hover:text-indigo-600 active:scale-90 ' +
+    'dark:text-slate-500 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-300 ' +
+    'sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100';
+  edit.innerHTML = ICONS.pencil;
+
   /* Eliminar */
   const del = document.createElement('button');
   del.type = 'button';
@@ -714,7 +762,8 @@ function createTaskItem(task, query) {
     'sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100';
   del.innerHTML = ICONS.trash;
 
-  li.append(check, content, del);
+  actions.append(edit, del);
+  li.append(check, content, actions);
 
   return li;
 }
@@ -1042,11 +1091,35 @@ export function updateContentHeight() {
   els.taskContent.style.height = height > 0 ? `${height}px` : '';
 }
 
+let taskFormMode = 'create';
+let taskFormBusy = false;
+
+function updateTaskSubmitLabel() {
+  const editing = taskFormMode === 'edit';
+
+  els.taskSubmitLabel.textContent = taskFormBusy
+    ? editing
+      ? 'Guardando...'
+      : 'Añadiendo...'
+    : editing
+      ? 'Guardar cambios'
+      : 'Añadir tarea';
+}
+
+export function setEditMode(active) {
+  taskFormMode = active ? 'edit' : 'create';
+
+  els.taskCancelEdit.classList.toggle('hidden', !active);
+  els.taskCancelEdit.classList.toggle('inline-flex', active);
+  updateTaskSubmitLabel();
+}
+
 export function setTaskBusy(busy) {
+  taskFormBusy = busy;
   els.taskSubmit.disabled = busy;
   els.taskSubmitSpinner.classList.toggle('hidden', !busy);
   els.taskSubmitIcon.classList.toggle('hidden', busy);
-  els.taskSubmitLabel.textContent = busy ? 'Añadiendo...' : 'Añadir tarea';
+  updateTaskSubmitLabel();
 }
 
 export const setLoading = (isLoading) => {
@@ -1129,6 +1202,7 @@ export function setClearCompletedConfirm(active) {
 
 export function resetTasksView() {
   els.form.reset();
+  setEditMode(false);
   els.list.replaceChildren();
   els.search.value = '';
   els.searchClear.classList.add('hidden');

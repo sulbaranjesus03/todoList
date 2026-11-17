@@ -51,6 +51,39 @@ final class TaskController
         Http::json(['data' => $this->tasks->create($this->uid(), $title, $content)], 201);
     }
 
+    /** PATCH /api/tasks/{id} */
+    public function update(int $id): void
+    {
+        $body = Http::body();
+
+        $title = $body['title'] ?? '';
+        $title = is_string($title) ? trim($title) : '';
+
+        $content = $body['content'] ?? '';
+        $content = is_string($content)
+            ? trim(str_replace(["\r\n", "\r"], "\n", $content))
+            : '';
+
+        if ($title === '') {
+            Http::json(['error' => 'El campo "title" es obligatorio.'], 400);
+            return;
+        }
+        if (mb_strlen($title) > self::MAX_TITLE_LENGTH) {
+            Http::json(['error' => 'El título no puede superar ' . self::MAX_TITLE_LENGTH . ' caracteres.'], 400);
+            return;
+        }
+        if (mb_strlen($content) > self::MAX_CONTENT_LENGTH) {
+            Http::json(['error' => 'El contenido no puede superar ' . self::MAX_CONTENT_LENGTH . ' caracteres.'], 400);
+            return;
+        }
+
+        $task = $this->tasks->update($id, $this->uid(), $title, $content);
+
+        $task === null
+            ? Http::json(['error' => 'Tarea no encontrada.'], 404)
+            : Http::json(['data' => $task]);
+    }
+
     /** PATCH /api/tasks/{id}/toggle */
     public function toggle(int $id): void
     {
