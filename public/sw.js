@@ -4,7 +4,7 @@
    Las llamadas a /api/ NUNCA se cachean.
    ========================================================= */
 
-const CACHE_VERSION = 'taskflow-v3';
+const CACHE_VERSION = 'taskflow-v4';
 
 const APP_SHELL = [
   '/',
